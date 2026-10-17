@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="6457cde8-4f03-4947-96f2-83c71d8f0021" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<file:config name="File_Config" doc:name="File Config" doc:id="42f7cc57-f8e0-439f-9947-55bd59cb4c30" />
+	<flow name="batch-processFlow" doc:id="3acf2974-a3e9-4ac9-85a2-6dca19899b00" >
+		<http:listener doc:name="Listener" doc:id="0ff286d0-64a0-434a-9321-4c60dc4405bd" config-ref="HTTP_Listener_config" path="/batch"/>
+		<set-payload value='#[[1,2,"a",4,5,"b","c"]]' doc:name='[1,2,"a",4,5,"b","c"]' doc:id="04cc3bc7-7866-48d9-bee6-94dd464bff71" />
+		<batch:job jobName="Batch_Job" doc:id="101160f4-5dca-493b-8c4f-16778d759488" maxFailedRecords="10">
+			<batch:process-records >
+				<batch:step name="Batch_Step" doc:id="f9d3fd98-5973-44bd-9ff6-193317dad27c" acceptPolicy="ALL">
+					<set-payload value="#[payload * 10]" doc:name="payload * 10" doc:id="d86e217d-844c-4b5a-aea2-ee7ed936fc2d" />
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="e8a55cd9-a840-401c-abe4-2288fca7f78e" size="2">
+						<logger level="INFO" doc:name="Aggregator size 2" doc:id="650fd73d-9a6a-4e75-8c26-2c5506d1c569" message='#[payload]'/>
+					</batch:aggregator>
+				</batch:step>
+				<batch:step name="Batch_Step1" doc:id="340d967e-ff0a-417d-ae6a-4f10aab200dd" acceptPolicy="ONLY_FAILURES">
+					<set-payload value="#['the alphabet is' ++ payload]" doc:name="'the alphabet is' ++ payload" doc:id="e1c9a114-9a98-4ccf-952a-22da96d8f17b" />
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="12191d8c-43b3-4c81-ad60-8eb9ec22713d" size="3">
+						<logger level="INFO" doc:name="Aggregator size 3" doc:id="d5692242-fa68-4f47-a59a-3c350f568eb1" message="#[payload]" />
+					</batch:aggregator>
+				</batch:step>
+				<batch:step name="Batch_Step2" doc:id="94235727-89e3-4c4b-8646-2da6de89c169" acceptPolicy="ONLY_FAILURES">
+					<ee:transform doc:name="Transform Message" doc:id="a16c9e39-6864-4cb6-8119-405d1c02862a">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	data: payload,
+	"Error": Batch::failureExceptionForStep('Batch_Step').localizedMessage default null
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="5731e0b5-20b9-4213-b7bb-af04e3e3d879" streaming="true">
+						<logger level="INFO" doc:name="Logger" doc:id="b7d764e0-135b-4de8-825f-2b8045e899f6" message="#[payload]"/>
+						<file:write doc:name="Write" doc:id="cf19e8f2-238d-4d00-b2d6-8d83f30ab975" path="F:\batchprocess\file.txt" >
+							<file:content ><![CDATA[#[output application/json
+---
+payload]]]></file:content>
+						</file:write>
+					
+</batch:aggregator>
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete>
+				<logger level="INFO" doc:name="Logger" doc:id="3dd2697f-0bb2-4386-ad48-f5531da32066" message="#[payload]"/>
+				<ee:transform doc:name="Transform Message" doc:id="49c8d91c-ec0d-4a1f-8fcd-4649aeab765a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</batch:on-complete>
+		</batch:job>
+	</flow>
+</mule>
